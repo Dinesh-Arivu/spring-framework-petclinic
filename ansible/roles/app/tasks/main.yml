@@ -2,20 +2,107 @@
 - name: Ensure apt cache refreshed
   apt:
     update_cache: yes
+    cache_valid_time: 3600
+
+- name: Ensure 'universe' repository is enabled (Ubuntu)
+  apt_repository:
+    repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: Refresh apt cache after repository change
+  apt:
+    update_cache: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: Check if tomcat9 package is available
+  command: apt-cache policy tomcat9
+  register: tomcat9_policy
+  changed_when: false
+  failed_when: false
+
+- name: Set fact tomcat_pkg_available
+  set_fact:
+    tomcat_pkg_available: "{{ (tomcat9_policy.stdout is defined) and (tomcat9_policy.stdout.find('Candidate: (none)') == -1) and (tomcat9_policy.stdout | length > 0) }}"
 
 - name: Install Java (OpenJDK 17)
   apt:
     name: openjdk-17-jdk
     state: present
 
-- name: Install Tomcat (we'll use Tomcat 9 via apt)
+- name: Install Tomcat via apt when available
   apt:
     name: tomcat9
     state: present
+  when: tomcat_pkg_available
 
-- name: Ensure Tomcat is running
+- name: Install Tomcat (manual archive) when tomcat9 package is not available
+  block:
+    - name: Install utilities and Java for manual Tomcat install
+      apt:
+        name:
+          - wget
+          - tar
+          - default-jdk
+        state: present
+
+    - name: Download Tomcat 9 tarball
+      get_url:
+        url: "https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.80/bin/apache-tomcat-9.0.80.tar.gz"
+        dest: /tmp/tomcat9.tar.gz
+        mode: '0644'
+
+    - name: Create /opt/tomcat directory
+      file:
+        path: /opt/tomcat
+        state: directory
+        mode: '0755'
+
+    - name: Extract Tomcat archive
+      unarchive:
+        src: /tmp/tomcat9.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+
+    - name: Symlink /opt/tomcat/latest to the extracted Tomcat
+      file:
+        src: /opt/tomcat/apache-tomcat-9.0.80
+        dest: /opt/tomcat/latest
+        state: link
+
+    - name: Create systemd unit for Tomcat
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Apache Tomcat 9
+          After=network.target
+
+          [Service]
+          Type=forking
+          ExecStart=/opt/tomcat/latest/bin/startup.sh
+          ExecStop=/opt/tomcat/latest/bin/shutdown.sh
+          User=root
+          Group=root
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Start tomcat systemd service
+      service:
+        name: tomcat
+        state: started
+        enabled: yes
+  when: not tomcat_pkg_available
+
+- name: Ensure Tomcat is running (package-managed path may use tomcat9 service name)
   service:
-    name: tomcat9
+    name: "{{ 'tomcat9' if tomcat_pkg_available else 'tomcat' }}"
     state: started
     enabled: yes
 
