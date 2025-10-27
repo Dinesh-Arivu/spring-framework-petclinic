@@ -25,6 +25,14 @@
   set_fact:
     tomcat_pkg_available: "{{ (tomcat9_policy.stdout is defined) and (tomcat9_policy.stdout.find('Candidate: (none)') == -1) and (tomcat9_policy.stdout | length > 0) }}"
 
+- name: Set Tomcat paths and service name based on installation method
+  set_fact:
+    tomcat_config_dir: "{{ '/etc/tomcat9' if tomcat_pkg_available else '/opt/tomcat/latest/bin' }}"
+    tomcat_webapps_dir: "{{ '/var/lib/tomcat9/webapps' if tomcat_pkg_available else '/opt/tomcat/latest/webapps' }}"
+    tomcat_user: "{{ 'tomcat' if tomcat_pkg_available else 'root' }}"
+    tomcat_group: "{{ 'tomcat' if tomcat_pkg_available else 'root' }}"
+    tomcat_service_name: "{{ 'tomcat9' if tomcat_pkg_available else 'tomcat' }}"
+
 - name: Install Java (OpenJDK 17)
   apt:
     name: openjdk-17-jdk
@@ -102,7 +110,7 @@
 
 - name: Ensure Tomcat is running (package-managed path may use tomcat9 service name)
   service:
-    name: "{{ 'tomcat9' if tomcat_pkg_available else 'tomcat' }}"
+    name: "{{ tomcat_service_name }}"
     state: started
     enabled: yes
 
@@ -140,7 +148,7 @@
 - name: Create Tomcat setenv.sh with DB connection properties
   template:
     src: setenv.sh.j2
-    dest: /etc/tomcat9/setenv.sh
+    dest: "{{ tomcat_config_dir }}/setenv.sh"
     owner: root
     mode: '0755'
   vars:
@@ -153,9 +161,9 @@
 - name: Upload petclinic.war to Tomcat webapps
   copy:
     src: ../../../../spring-framework-petclinic/target/petclinic.war
-    dest: /var/lib/tomcat9/webapps/petclinic.war
-    owner: tomcat
-    group: tomcat
+    dest: "{{ tomcat_webapps_dir }}/petclinic.war"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
     mode: '0644'
   notify: restart tomcat
 
