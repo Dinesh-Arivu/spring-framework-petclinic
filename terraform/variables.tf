@@ -10,7 +10,7 @@ variable "key_name" {
 
 variable "public_key_path" {
   description = "Path to public key file for creating a key-pair (optional)"
-  default     = "mykeypair"
+  default     = ""
 }
 
 variable "instance_type" {
