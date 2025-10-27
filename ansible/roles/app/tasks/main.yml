@@ -78,14 +78,3 @@
     port: 8080
     delay: 5
     timeout: 120
-
-handlers:
-  - name: reload nginx
-    service:
-      name: nginx
-      state: reloaded
-
-  - name: restart tomcat
-    service:
-      name: tomcat9
-      state: restarted
