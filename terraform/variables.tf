@@ -8,6 +8,13 @@ variable "key_name" {
   type        = string
 }
 
+variable "public_key_path" {
+  description = "Path to public key file (optional, leave empty to skip)"
+  type        = string
+  default     = ""
+}
+
+
 variable "instance_type" {
   type    = string
   default = "t3.micro" # approx 1 vCPU 1GB; for 2GB choose t3.small
