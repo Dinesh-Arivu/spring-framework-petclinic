@@ -1,56 +1,58 @@
----
-- name: Update apt cache
-  apt:
-    update_cache: yes
-    force_apt_get: yes
-    cache_valid_time: 3600
+# tasks file for db role
 
-- name: Install MySQL server
+- name: Ensure MySQL is installed
+  become: true
   apt:
     name: mysql-server
     state: present
+    update_cache: yes
+  tags: [db, mysql]
 
-- name: Ensure MySQL service is running
+- name: Ensure MySQL service is started and enabled
+  become: true
   service:
     name: mysql
     state: started
     enabled: yes
-
-- name: Allow remote access (bind to 0.0.0.0)
-  lineinfile:
-    path: /etc/mysql/mysql.conf.d/mysqld.cnf
-    regexp: '^bind-address'
-    line: 'bind-address = 0.0.0.0'
-    backup: yes
-  notify: restart mysql
-
-- name: Create database and user for petclinic
-  mysql_db:
-    name: petclinic
-    state: present
-
-- name: Create MySQL user
-  mysql_user:
-    login_user: root
-    name: petclinic
-    password: petclinic
-    priv: 'petclinic.*:ALL'
-    host: '%'
-    state: present
+  tags: [db, mysql]
 
 - name: Ensure MySQL root auth plugin is native (if Ubuntu default uses auth_socket)
+  become: true
   block:
-    - name: Set root password (only if needed) - WARN: run interactively if secure
-      mysql_user:
-        login_user: root
-        name: root
-        host_all: yes
-        password: ""
-        check_implicit_admin: yes
-  when: false
+    - name: "Set root password (only if needed) - WARN: run interactively if secure"
+      ansible.builtin.shell: |
+        mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ mysql_root_password }}'; FLUSH PRIVILEGES;"
+      args:
+        warn: false
+      when:
+        - mysql_root_password is defined
+        - mysql_root_password | length > 0
 
-handlers:
-  - name: restart mysql
-    service:
-      name: mysql
-      state: restarted
+    - name: Ensure root uses mysql_native_password plugin (idempotent)
+      ansible.builtin.shell: |
+        mysql -u root -p'{{ mysql_root_password }}' -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ mysql_root_password }}'; FLUSH PRIVILEGES;"
+      args:
+        warn: false
+      when:
+        - mysql_root_password is defined
+        - mysql_root_password | length > 0
+
+  rescue:
+    - name: Report failure to set root auth plugin
+      ansible.builtin.debug:
+        msg: >
+          Failed to set MySQL root auth plugin to mysql_native_password.
+          You may need to run the command interactively on the target host.
+      tags: [db, mysql]
+
+- name: Ensure the petclinic database exists
+  become: true
+  community.mysql.mysql_db:
+    name: "{{ petclinic_db_name | default('petclinic') }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password | default(omit) }}"
+  when:
+    - mysql_root_password is defined
+    - mysql_root_password | length > 0
+  tags: [db, mysql]
