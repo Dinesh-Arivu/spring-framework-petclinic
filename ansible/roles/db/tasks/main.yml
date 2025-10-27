@@ -1,5 +1,4 @@
-# tasks file for db role
-
+---
 - name: Ensure MySQL is installed
   become: true
   apt:
