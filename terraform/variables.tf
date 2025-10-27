@@ -22,5 +22,5 @@ variable "instance_type" {
 
 variable "app_ami" {
   description = "AMI ID for app and db (Ubuntu 22.04)"
-  default     = "ami-0360c520857e3138f" # replace with a region-appropriate AMI
+  default     = "ami-0bbdd8c17ed981ef9" # replace with a region-appropriate AMI
 }
