@@ -10,7 +10,7 @@ variable "key_name" {
 
 variable "public_key_path" {
   description = "Path to public key file for creating a key-pair (optional)"
-  default     = ""
+  default     = "Project_key"
 }
 
 variable "instance_type" {
@@ -20,5 +20,5 @@ variable "instance_type" {
 
 variable "app_ami" {
   description = "AMI ID for app and db (Ubuntu 22.04)"
-  default     = "ami-0cfb3e403b2e5e9b3" # replace with a region-appropriate AMI
+  default     = "ami-0360c520857e3138f" # replace with a region-appropriate AMI
 }
